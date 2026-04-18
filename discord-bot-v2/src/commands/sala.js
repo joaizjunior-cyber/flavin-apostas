@@ -4,7 +4,7 @@
 
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const db = require('../database/db');
-const { buildErrorEmbed, buildSalaEmbed } = require('../utils/embeds');
+const { buildErrorEmbed, buildSalaEmbed, buildSalaButtons } = require('../utils/embeds');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -22,7 +22,7 @@ module.exports = {
         ),
 
     async execute(interaction) {
-        const { user, guild, member } = interaction;
+        const { user, member } = interaction;
 
         const adminRoleId = process.env.ADMIN_ROLE_ID;
         const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator)
@@ -48,6 +48,7 @@ module.exports = {
 
         await interaction.reply({
             embeds: [buildSalaEmbed(user.id, salaId, senha, ticket.player1_id, ticket.player2_id)],
+            components: [buildSalaButtons(salaId)],
         });
     },
 };
