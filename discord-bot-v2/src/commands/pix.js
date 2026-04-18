@@ -1,8 +1,9 @@
 // ============================================================
-// src/commands/pix.js - Comando /pix
+// src/commands/pix.js
 // ============================================================
 
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, AttachmentBuilder } = require('discord.js');
+const QRCode = require('qrcode');
 const db = require('../database/db');
 const { buildErrorEmbed, buildSuccessEmbed, buildInfoEmbed, buildPixEmbed } = require('../utils/embeds');
 
@@ -31,14 +32,13 @@ module.exports = {
         )
         .addSubcommand(sub =>
             sub.setName('enviar')
-                .setDescription('Enviar PIX manualmente no ticket atual')
+                .setDescription('Enviar PIX com QR Code no ticket atual')
         ),
 
     async execute(interaction) {
         const sub = interaction.options.getSubcommand();
         const { user, guild, member } = interaction;
 
-        // Verificar se é admin
         const adminRoleId = process.env.ADMIN_ROLE_ID;
         const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator)
             || (adminRoleId && member.roles.cache.has(adminRoleId));
@@ -50,15 +50,10 @@ module.exports = {
             });
         }
 
-        // --------------------------------------------------------
-        // CADASTRAR PIX
-        // --------------------------------------------------------
         if (sub === 'cadastrar') {
             const chave = interaction.options.getString('chave');
             const valor = interaction.options.getNumber('valor');
-
             db.setAdminPix(user.id, guild.id, chave, valor);
-
             return interaction.reply({
                 embeds: [buildSuccessEmbed(
                     'PIX Cadastrado!',
@@ -68,9 +63,6 @@ module.exports = {
             });
         }
 
-        // --------------------------------------------------------
-        // VER PIX
-        // --------------------------------------------------------
         if (sub === 'ver') {
             const pixData = db.getAdminPix(user.id, guild.id);
             if (!pixData) {
@@ -79,19 +71,12 @@ module.exports = {
                     ephemeral: true,
                 });
             }
-
             return interaction.reply({
-                embeds: [buildInfoEmbed(
-                    'Seu PIX',
-                    `**Chave:** \`${pixData.chave}\`\n**Valor:** R$ ${pixData.valor.toFixed(2)}`
-                )],
+                embeds: [buildInfoEmbed('Seu PIX', `**Chave:** \`${pixData.chave}\`\n**Valor:** R$ ${pixData.valor.toFixed(2)}`)],
                 ephemeral: true,
             });
         }
 
-        // --------------------------------------------------------
-        // ENVIAR PIX NO TICKET
-        // --------------------------------------------------------
         if (sub === 'enviar') {
             const ticket = db.getTicket(interaction.channel.id);
             if (!ticket) {
@@ -100,7 +85,6 @@ module.exports = {
                     ephemeral: true,
                 });
             }
-
             const pixData = db.getAdminPix(user.id, guild.id);
             if (!pixData) {
                 return interaction.reply({
@@ -109,9 +93,19 @@ module.exports = {
                 });
             }
 
-            await interaction.reply({
-                embeds: [buildPixEmbed(user.id, pixData.chave, pixData.valor, ticket.player1_id, ticket.player2_id)],
+            await interaction.deferReply();
+
+            const qrBuffer = await QRCode.toBuffer(pixData.chave, {
+                width: 300,
+                margin: 2,
+                color: { dark: '#000000', light: '#ffffff' },
             });
+
+            const attachment = new AttachmentBuilder(qrBuffer, { name: 'qrcode-pix.png' });
+            const embed = buildPixEmbed(user.id, pixData.chave, pixData.valor, ticket.player1_id, ticket.player2_id)
+                .setImage('attachment://qrcode-pix.png');
+
+            await interaction.editReply({ embeds: [embed], files: [attachment] });
         }
     },
 };
