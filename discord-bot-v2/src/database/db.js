@@ -102,4 +102,3 @@ function addToQueue(userId, username, mode, value, guildId, categoria = 'Mobile'
     }
 }
 
-functi
