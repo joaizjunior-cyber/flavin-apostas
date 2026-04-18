@@ -1,5 +1,5 @@
 // ============================================================
-// src/commands/sala.js - Comando /sala
+// src/commands/sala.js
 // ============================================================
 
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
@@ -17,8 +17,8 @@ module.exports = {
         )
         .addStringOption(opt =>
             opt.setName('senha')
-                .setDescription('Senha da sala (opcional)')
-                .setRequired(false)
+                .setDescription('Senha da sala')
+                .setRequired(true)
         ),
 
     async execute(interaction) {
@@ -44,7 +44,7 @@ module.exports = {
         }
 
         const salaId = interaction.options.getString('id');
-        const senha = interaction.options.getString('senha');
+        const senha  = interaction.options.getString('senha');
 
         await interaction.reply({
             embeds: [buildSalaEmbed(user.id, salaId, senha, ticket.player1_id, ticket.player2_id)],
