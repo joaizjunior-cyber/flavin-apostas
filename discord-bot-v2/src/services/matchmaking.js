@@ -91,4 +91,53 @@ async function createTicketChannel(guild, player1, player2, mode, value, adminDa
     db.createTicket(
         channel.id,
         { id: player1.id, username: player1.user.username },
-        { id: player2.id, username: player2.user.u
+        { id: player2.id, username: player2.user.username },
+        mode, value, guild.id, adminId, categoria, formato
+    );
+
+    try {
+        const embed = buildTicketEmbed(player1.user, player2.user, mode, value, adminId, categoria, formato);
+        const ticketBtns = buildTicketButtons();
+        const adminBtns  = buildAdminButtons();
+
+        const mentions = adminId
+            ? `<@${player1.id}> <@${player2.id}> <@${adminId}>`
+            : `<@${player1.id}> <@${player2.id}>`;
+
+        const msg = await channel.send({
+            content: mentions,
+            embeds: [embed],
+            components: [ticketBtns, adminBtns],
+        });
+
+        db.updateTicketMessage(channel.id, msg.id);
+
+        if (adminId) {
+            const pixData = db.getAdminPix(adminId, guild.id);
+            if (pixData) {
+                const pixEmbed = buildPixEmbed(adminId, pixData.chave, pixData.valor, player1.id, player2.id);
+                await channel.send({ embeds: [pixEmbed] });
+            }
+        }
+
+    } catch (err) {
+        console.error('[TICKET] Erro ao enviar mensagem:', err.message);
+    }
+}
+
+async function closeTicketChannel(channel, delayMs = 5000) {
+    db.updateTicketStatus(channel.id, 'closed');
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+    try {
+        await channel.delete('Ticket encerrado');
+        db.deleteTicket(channel.id);
+    } catch (err) {
+        console.error('[TICKET] Erro ao deletar canal:', err.message);
+    }
+}
+
+function sanitizeName(name) {
+    return name.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 12) || 'jogador';
+}
+
+module.exports = { checkAndCreateMatch, closeTicketChannel };
