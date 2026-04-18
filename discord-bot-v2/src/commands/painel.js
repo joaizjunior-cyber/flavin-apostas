@@ -6,9 +6,6 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { buildFilaEmbed, buildFilaButtons } = require('../utils/embeds');
 const db = require('../database/db');
 
-const CATEGORIAS = ['Mobile', 'Mobilador', 'Emulador'];
-const FORMATOS   = ['1x1', '2x2', '3x3', '4x4'];
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('painel')
@@ -19,9 +16,9 @@ module.exports = {
                 .setDescription('Categoria das filas')
                 .setRequired(true)
                 .addChoices(
-                    { name: 'Mobile',    value: 'Mobile'    },
-                    { name: 'Mobilador', value: 'Mobilador' },
-                    { name: 'Emulador',  value: 'Emulador'  },
+                    { name: 'Mobile',   value: 'Mobile'   },
+                    { name: 'Misto',    value: 'Misto'    },
+                    { name: 'Emulador', value: 'Emulador' },
                 )
         )
         .addStringOption(opt =>
@@ -44,9 +41,8 @@ module.exports = {
         const categoria = interaction.options.getString('categoria');
         const formato   = interaction.options.getString('formato');
 
-        await interaction.reply({ content: `✅ Enviando painel **${categoria} | ${formato}**...`, ephemeral: true });
+        await interaction.reply({ content: '✅ Enviando painel **' + categoria + ' | ' + formato + '**...', ephemeral: true });
 
-        // Envia de R$20 até R$1 (ordem decrescente)
         for (let valor = 20; valor >= 1; valor--) {
             const msg = await interaction.channel.send({
                 embeds: [buildFilaEmbed(valor, null, null, categoria, formato)],
