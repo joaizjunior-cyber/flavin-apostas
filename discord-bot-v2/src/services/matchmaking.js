@@ -7,7 +7,9 @@ const db = require('../database/db');
 const { buildTicketEmbed, buildTicketButtons, buildAdminButtons, buildPixEmbed } = require('../utils/embeds');
 const { MODE_LABELS } = require('../config/constants');
 
-async function checkAndCreateMatch(guild, mode, value, categoria = 'Mobile', formato = '1x1') {
+async function checkAndCreateMatch(guild, mode, value, categoria, formato) {
+    categoria = categoria || 'Mobile';
+    formato = formato || '1x1';
     const pair = db.getQueuePair(mode, value, guild.id, categoria, formato);
     if (!pair) return false;
 
@@ -29,18 +31,21 @@ async function checkAndCreateMatch(guild, mode, value, categoria = 'Mobile', for
     const nextAdmin = db.getNextAdmin(guild.id);
     if (nextAdmin) {
         db.removeAdminFromQueue(nextAdmin.user_id);
-        console.log(`[MATCHMAKING] Admin designado: ${nextAdmin.username}`);
     }
 
     await createTicketChannel(guild, player1, player2, mode, value, nextAdmin, categoria, formato);
     return true;
 }
 
-async function createTicketChannel(guild, player1, player2, mode, value, adminData = null, categoria = 'Mobile', formato = '1x1') {
+async function createTicketChannel(guild, player1, player2, mode, value, adminData, categoria, formato) {
+    adminData = adminData || null;
+    categoria = categoria || 'Mobile';
+    formato = formato || '1x1';
+
     const modeSlug = mode === 'gelo_infinito' ? 'gelo-inf' : 'gelo-norm';
     const name1 = sanitizeName(player1.user.username);
     const name2 = sanitizeName(player2.user.username);
-    const channelName = `${modeSlug}-r${value}-${name1}-vs-${name2}`;
+    const channelName = modeSlug + '-r' + value + '-' + name1 + '-vs-' + name2;
 
     const permissionOverwrites = [
         { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -72,8 +77,8 @@ async function createTicketChannel(guild, player1, player2, mode, value, adminDa
     const channelOptions = {
         name: channelName,
         type: ChannelType.GuildText,
-        permissionOverwrites,
-        topic: `${categoria} | ${formato} | ${MODE_LABELS[mode]} | R$${value} | ${player1.user.username} vs ${player2.user.username}`,
+        permissionOverwrites: permissionOverwrites,
+        topic: categoria + ' | ' + formato + ' | ' + (MODE_LABELS[mode] || mode) + ' | R$' + value + ' | ' + player1.user.username + ' vs ' + player2.user.username,
     };
 
     const categoryId = process.env.TICKET_CATEGORY_ID;
@@ -88,21 +93,27 @@ async function createTicketChannel(guild, player1, player2, mode, value, adminDa
     }
 
     const adminId = adminData ? adminData.user_id : null;
+
     db.createTicket(
         channel.id,
         { id: player1.id, username: player1.user.username },
         { id: player2.id, username: player2.user.username },
-        mode, value, guild.id, adminId, categoria, formato
+        mode,
+        value,
+        guild.id,
+        adminId,
+        categoria,
+        formato
     );
 
     try {
         const embed = buildTicketEmbed(player1.user, player2.user, mode, value, adminId, categoria, formato);
         const ticketBtns = buildTicketButtons();
-        const adminBtns  = buildAdminButtons();
+        const adminBtns = buildAdminButtons();
 
         const mentions = adminId
-            ? `<@${player1.id}> <@${player2.id}> <@${adminId}>`
-            : `<@${player1.id}> <@${player2.id}>`;
+            ? '<@' + player1.id + '> <@' + player2.id + '> <@' + adminId + '>'
+            : '<@' + player1.id + '> <@' + player2.id + '>';
 
         const msg = await channel.send({
             content: mentions,
@@ -125,9 +136,10 @@ async function createTicketChannel(guild, player1, player2, mode, value, adminDa
     }
 }
 
-async function closeTicketChannel(channel, delayMs = 5000) {
+async function closeTicketChannel(channel, delayMs) {
+    delayMs = delayMs || 5000;
     db.updateTicketStatus(channel.id, 'closed');
-    await new Promise(resolve => setTimeout(resolve, delayMs));
+    await new Promise(function(resolve) { setTimeout(resolve, delayMs); });
     try {
         await channel.delete('Ticket encerrado');
         db.deleteTicket(channel.id);
