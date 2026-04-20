@@ -28,7 +28,7 @@ module.exports = {
     },
     BUTTONS: {
         LEAVE_QUEUE:         'leave_queue',
-        MATCH_FINISHED:      'match_finished',
+        CONFIRM_MATCH:       'confirm_match',
         MATCH_CANCELLED:     'match_cancelled',
         CLOSE_TICKET:        'close_ticket',
         ADMIN_CONFIRM_PIX:   'admin_confirm_pix',
