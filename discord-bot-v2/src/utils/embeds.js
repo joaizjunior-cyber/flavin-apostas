@@ -6,33 +6,36 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { COLORS, BUTTONS, MODE_LABELS } = require('../config/constants');
 
 function buildFilaEmbed(valor, normalPlayer, infinitoPlayer, categoria, formato) {
-    normalPlayer = normalPlayer || null;
+    normalPlayer   = normalPlayer   || null;
     infinitoPlayer = infinitoPlayer || null;
-    categoria = categoria || 'Mobile';
-    formato = formato || '1x1';
+    categoria      = categoria      || 'Mobile';
+    formato        = formato        || '1x1';
 
-    const normalText   = normalPlayer   ? '<@' + normalPlayer + '>'   : 'Nenhum jogador na fila.';
-    const infinitoText = infinitoPlayer ? '<@' + infinitoPlayer + '>' : 'Nenhum jogador na fila.';
+    const normalText   = normalPlayer   ? `<@${normalPlayer}> — aguardando...`   : 'Nenhum jogador na fila.';
+    const infinitoText = infinitoPlayer ? `<@${infinitoPlayer}> — aguardando...` : 'Nenhum jogador na fila.';
 
     return new EmbedBuilder()
-        .setTitle(categoria + ' | ' + formato + ' | R$' + valor + ',00')
-        .setDescription('**Gel Normal:**\n' + normalText + '\n\n**Gel Inf:**\n' + infinitoText)
+        .setTitle(`${categoria} | ${formato} | R$${valor},00`)
+        .setDescription(
+            `**🧊 Gelo Normal:**\n${normalText}\n\n` +
+            `**❄️ Gelo Infinito:**\n${infinitoText}`
+        )
         .setColor(COLORS.ICE_NORM)
         .setTimestamp();
 }
 
 function buildFilaButtons(valor, categoria, formato) {
     categoria = categoria || 'Mobile';
-    formato = formato || '1x1';
+    formato   = formato   || '1x1';
     const cat = categoria.toLowerCase().replace(/\s/g, '');
     const fmt = formato.toLowerCase();
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId('fila_normal_' + valor + '_' + cat + '_' + fmt)
+            .setCustomId(`fila_normal_${valor}_${cat}_${fmt}`)
             .setLabel('🧊 Gel Normal')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
-            .setCustomId('fila_infinito_' + valor + '_' + cat + '_' + fmt)
+            .setCustomId(`fila_infinito_${valor}_${cat}_${fmt}`)
             .setLabel('❄️ Gel Inf')
             .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
@@ -44,30 +47,31 @@ function buildFilaButtons(valor, categoria, formato) {
 }
 
 function buildTicketEmbed(player1, player2, mode, value, adminId, categoria, formato) {
-    adminId = adminId || null;
+    adminId   = adminId   || null;
     categoria = categoria || 'Mobile';
-    formato = formato || '1x1';
+    formato   = formato   || '1x1';
     const label = MODE_LABELS[mode] || mode;
     const color = mode === 'gelo_infinito' ? COLORS.ICE_INF : COLORS.ICE_NORM;
 
     return new EmbedBuilder()
-        .setTitle('⚔️ ' + player1.username + ' vs ' + player2.username)
+        .setTitle(`⚔️ ${player1.username} vs ${player2.username}`)
         .setDescription(
-            '> Partida criada! Boa sorte aos jogadores.\n\n' +
-            '👤 **Jogador 1:** <@' + player1.id + '>\n' +
-            '👤 **Jogador 2:** <@' + player2.id + '>\n' +
-            '🎮 **Modo:** ' + label + '\n' +
-            '📱 **Categoria:** ' + categoria + '\n' +
-            '⚔️ **Formato:** ' + formato + '\n' +
-            '💰 **Valor:** R$ ' + value + ',00\n' +
-            (adminId ? '👮 **Admin:** <@' + adminId + '>\n' : '👮 **Admin:** Aguardando...\n') +
+            '> Partida criada! Combinem as regras e cliquem em **Confirmar** para iniciar.\n\n' +
+            `👤 **Jogador 1:** <@${player1.id}>\n` +
+            `👤 **Jogador 2:** <@${player2.id}>\n` +
+            `🎮 **Modo:** ${label}\n` +
+            `📱 **Categoria:** ${categoria}\n` +
+            `⚔️ **Formato:** ${formato}\n` +
+            `💰 **Valor:** R$ ${value},00\n` +
+            (adminId ? `👮 **Admin:** <@${adminId}>\n` : '👮 **Admin:** Aguardando...\n') +
             '\n━━━━━━━━━━━━━━━━━━━━━━━\n' +
             '📋 **Instruções:**\n' +
-            '1. Aguarde o admin enviar o PIX\n' +
-            '2. Realize o pagamento\n' +
-            '3. Admin confirma e envia a sala\n' +
-            '4. Joguem e divirtam-se!\n' +
-            '5. Após a partida, use /vencedor @player\n' +
+            '1. Combinem as regras da partida\n' +
+            '2. **Ambos** cliquem em ✅ Confirmar\n' +
+            '3. O bot enviará o PIX automaticamente\n' +
+            '4. Realizem o pagamento\n' +
+            '5. Admin confirma e envia a sala\n' +
+            '6. Após a partida, use /vencedor @player\n' +
             '━━━━━━━━━━━━━━━━━━━━━━━\n\n' +
             '⚠️ **Não inicie a partida antes da confirmação do PIX!**'
         )
@@ -76,12 +80,43 @@ function buildTicketEmbed(player1, player2, mode, value, adminId, categoria, for
         .setTimestamp();
 }
 
-function buildTicketButtons() {
+function buildConfirmacaoEmbed(player1Id, player2Id, p1Confirmed, p2Confirmed) {
+    const p1Status = p1Confirmed ? '✅' : '⏳';
+    const p2Status = p2Confirmed ? '✅' : '⏳';
+
+    const ambosConfirmaram = p1Confirmed && p2Confirmed;
+
+    return new EmbedBuilder()
+        .setTitle(ambosConfirmaram ? '✅ Partida Confirmada!' : '⏳ Aguardando Confirmação')
+        .setDescription(
+            `${p1Status} <@${player1Id}>\n` +
+            `${p2Status} <@${player2Id}>\n\n` +
+            (ambosConfirmaram
+                ? '🎉 Ambos confirmaram! Enviando informações de pagamento...'
+                : 'Aguardando ambos os jogadores clicarem em **Confirmar**.')
+        )
+        .setColor(ambosConfirmaram ? COLORS.SUCCESS : COLORS.WARNING)
+        .setTimestamp();
+}
+
+function buildConfirmButtons(p1Confirmed, p2Confirmed) {
+    const ambos = p1Confirmed && p2Confirmed;
     return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(BUTTONS.CONFIRM_MATCH)
+            .setLabel('✅ Confirmar')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(ambos),
         new ButtonBuilder()
             .setCustomId(BUTTONS.MATCH_CANCELLED)
             .setLabel('❌ Cancelar Partida')
-            .setStyle(ButtonStyle.Danger),
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(ambos),
+    );
+}
+
+function buildTicketButtons() {
+    return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(BUTTONS.CLOSE_TICKET)
             .setLabel('🔒 Fechar Ticket')
@@ -102,15 +137,21 @@ function buildAdminButtons() {
     );
 }
 
-function buildPixEmbed(adminId, chave, valor, player1Id, player2Id) {
+function buildPixEmbed(adminId, chave, valorBase, taxa, player1Id, player2Id) {
+    const valorTotal = (valorBase + taxa).toFixed(2);
+    const taxaStr    = taxa > 0 ? `R$ ${taxa.toFixed(2)}` : 'Sem taxa';
+
     return new EmbedBuilder()
         .setTitle('💰 Informações de Pagamento PIX')
         .setDescription(
-            '<@' + player1Id + '> e <@' + player2Id + '>, realizem o pagamento:\n\n' +
-            '👮 **Admin:** <@' + adminId + '>\n' +
-            '🔑 **Chave PIX:** `' + chave + '`\n' +
-            '💵 **Valor:** R$ ' + valor.toFixed(2) + '\n\n' +
-            '⚠️ Após pagar, aguarde a confirmação do admin!'
+            `<@${player1Id}> e <@${player2Id}>, realizem o pagamento:\n\n` +
+            `👮 **Admin:** <@${adminId}>\n` +
+            `🔑 **Chave PIX:** \`${chave}\`\n` +
+            `💵 **Valor da aposta:** R$ ${Number(valorBase).toFixed(2)}\n` +
+            `➕ **Taxa de inscrição:** ${taxaStr}\n` +
+            `💳 **Total a pagar:** R$ ${valorTotal}\n\n` +
+            '⚠️ Após pagar, aguarde a confirmação do admin!\n' +
+            '❌ **Bancos proibidos:** Mercado Pago, Inter, PicPay.'
         )
         .setColor(COLORS.SUCCESS)
         .setTimestamp();
@@ -120,10 +161,10 @@ function buildSalaEmbed(adminId, salaId, senha, player1Id, player2Id) {
     return new EmbedBuilder()
         .setTitle('🎮 Informações da Sala')
         .setDescription(
-            '<@' + player1Id + '> e <@' + player2Id + '>, entrem na sala:\n\n' +
-            '👮 **Admin:** <@' + adminId + '>\n' +
-            '🏠 **ID da Sala:** `' + salaId + '`\n' +
-            (senha ? '🔐 **Senha:** `' + senha + '`\n' : '') +
+            `<@${player1Id}> e <@${player2Id}>, entrem na sala:\n\n` +
+            `👮 **Admin:** <@${adminId}>\n` +
+            `🏠 **ID da Sala:** \`${salaId}\`\n` +
+            (senha ? `🔐 **Senha:** \`${senha}\`\n` : '') +
             '\n✅ **Boa sorte a ambos os jogadores!**'
         )
         .setColor(COLORS.INFO)
@@ -133,7 +174,7 @@ function buildSalaEmbed(adminId, salaId, senha, player1Id, player2Id) {
 function buildSalaButtons(salaId) {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setCustomId('copiar_sala_id_' + salaId)
+            .setCustomId(`copiar_sala_id_${salaId}`)
             .setLabel('📋 Copiar ID da Sala')
             .setStyle(ButtonStyle.Secondary),
     );
@@ -143,10 +184,10 @@ function buildVencedorEmbed(winnerId, loserId, mode, value) {
     return new EmbedBuilder()
         .setTitle('🏆 Partida Finalizada!')
         .setDescription(
-            '**Vencedor:** <@' + winnerId + '> 🎉\n' +
-            '**Perdedor:** <@' + loserId + '>\n\n' +
-            '🎮 **Modo:** ' + (MODE_LABELS[mode] || mode) + '\n' +
-            '💰 **Valor:** R$ ' + value + ',00\n\n' +
+            `**Vencedor:** <@${winnerId}> 🎉\n` +
+            `**Perdedor:** <@${loserId}>\n\n` +
+            `🎮 **Modo:** ${MODE_LABELS[mode] || mode}\n` +
+            `💰 **Valor:** R$ ${value},00\n\n` +
             'Vitória registrada no histórico! O ticket será fechado em breve.'
         )
         .setColor(COLORS.GOLD)
@@ -154,29 +195,29 @@ function buildVencedorEmbed(winnerId, loserId, mode, value) {
 }
 
 function buildHistoricoEmbed(userId, username, historico) {
-    const vitorias = historico.filter(function(h) { return h.winner_id === userId; }).length;
-    const derrotas  = historico.filter(function(h) { return h.loser_id  === userId; }).length;
+    const vitorias = historico.filter(h => h.winner_id === userId).length;
+    const derrotas  = historico.filter(h => h.loser_id  === userId).length;
 
-    const lista = historico.slice(0, 10).map(function(h) {
+    const lista = historico.slice(0, 10).map(h => {
         const ganhou   = h.winner_id === userId;
         const emoji    = ganhou ? '✅' : '❌';
         const oponente = ganhou ? h.loser_name : h.winner_name;
         const data     = new Date(h.created_at).toLocaleDateString('pt-BR');
-        return emoji + ' vs **' + oponente + '** — R$' + h.value + ' — ' + (MODE_LABELS[h.mode] || h.mode) + ' — ' + data;
+        return `${emoji} vs **${oponente}** — R$${h.value} — ${MODE_LABELS[h.mode] || h.mode} — ${data}`;
     }).join('\n') || 'Nenhuma partida registrada.';
 
     return new EmbedBuilder()
-        .setTitle('📊 Histórico de ' + username)
-        .setDescription('✅ **Vitórias:** ' + vitorias + '\n❌ **Derrotas:** ' + derrotas + '\n\n**Últimas partidas:**\n' + lista)
+        .setTitle(`📊 Histórico de ${username}`)
+        .setDescription(`✅ **Vitórias:** ${vitorias}\n❌ **Derrotas:** ${derrotas}\n\n**Últimas partidas:**\n${lista}`)
         .setColor(COLORS.INFO)
         .setTimestamp();
 }
 
 function buildRankingEmbed(ranking) {
     const medals = ['🥇', '🥈', '🥉'];
-    const lista = ranking.map(function(r, i) {
-        const medal = medals[i] || '**' + (i + 1) + '.**';
-        return medal + ' <@' + r.winner_id + '> — **' + r.vitorias + '** vitória(s)';
+    const lista = ranking.map((r, i) => {
+        const medal = medals[i] || `**${i + 1}.**`;
+        return `${medal} <@${r.winner_id}> — **${r.vitorias}** vitória(s)`;
     }).join('\n') || 'Nenhuma partida registrada ainda.';
 
     return new EmbedBuilder()
@@ -187,26 +228,67 @@ function buildRankingEmbed(ranking) {
         .setTimestamp();
 }
 
+function buildLogEmbed(ticket) {
+    const closeReason = {
+        finished:          '✅ Partida Concluída',
+        cancelled:         '❌ Cancelada pelos jogadores',
+        admin_closed:      '🔒 Fechada pelo admin',
+        admin_cmd:         '🔒 Fechada via comando',
+    }[ticket.close_reason] || ticket.close_reason || 'Desconhecido';
+
+    const dataAbertura  = new Date(ticket.created_at).toLocaleString('pt-BR');
+    const dataFechamento = ticket.closed_at ? new Date(ticket.closed_at).toLocaleString('pt-BR') : 'N/A';
+    const valorTotal = ticket.taxa > 0
+        ? `R$ ${ticket.value},00 + R$ ${Number(ticket.taxa).toFixed(2)} (taxa) = R$ ${(ticket.value + ticket.taxa).toFixed(2)}`
+        : `R$ ${ticket.value},00`;
+
+    return new EmbedBuilder()
+        .setTitle(`📁 Log de Ticket — ${ticket.player1_name} vs ${ticket.player2_name}`)
+        .setDescription(
+            `**Canal:** <#${ticket.channel_id}>\n` +
+            `**Status:** ${closeReason}\n\n` +
+            `👤 **Jogador 1:** <@${ticket.player1_id}> (${ticket.player1_name})\n` +
+            `👤 **Jogador 2:** <@${ticket.player2_id}> (${ticket.player2_name})\n` +
+            `👮 **Admin:** ${ticket.admin_id ? `<@${ticket.admin_id}>` : 'Nenhum'}\n\n` +
+            `🎮 **Modo:** ${MODE_LABELS[ticket.mode] || ticket.mode}\n` +
+            `📱 **Categoria:** ${ticket.categoria}\n` +
+            `⚔️ **Formato:** ${ticket.formato}\n` +
+            `💰 **Valor:** ${valorTotal}\n` +
+            `🔑 **Chave PIX usada:** ${ticket.pix_chave ? `\`${ticket.pix_chave}\`` : 'Não enviado'}\n\n` +
+            (ticket.winner_id
+                ? `🏆 **Vencedor:** <@${ticket.winner_id}> (${ticket.winner_name})\n` +
+                  `💀 **Perdedor:** <@${ticket.loser_id}> (${ticket.loser_name})\n\n`
+                : '') +
+            `🕐 **Abertura:** ${dataAbertura}\n` +
+            `🕐 **Fechamento:** ${dataFechamento}`
+        )
+        .setColor(ticket.winner_id ? COLORS.GOLD : COLORS.ERROR)
+        .setFooter({ text: `ID do canal: ${ticket.channel_id}` })
+        .setTimestamp();
+}
+
 function buildErrorEmbed(message) {
     return new EmbedBuilder().setTitle('❌ Erro').setDescription(message).setColor(COLORS.ERROR).setTimestamp();
 }
 
 function buildWarningEmbed(title, message) {
-    return new EmbedBuilder().setTitle('⚠️ ' + title).setDescription(message).setColor(COLORS.WARNING).setTimestamp();
+    return new EmbedBuilder().setTitle(`⚠️ ${title}`).setDescription(message).setColor(COLORS.WARNING).setTimestamp();
 }
 
 function buildInfoEmbed(title, message) {
-    return new EmbedBuilder().setTitle('ℹ️ ' + title).setDescription(message).setColor(COLORS.INFO).setTimestamp();
+    return new EmbedBuilder().setTitle(`ℹ️ ${title}`).setDescription(message).setColor(COLORS.INFO).setTimestamp();
 }
 
 function buildSuccessEmbed(title, message) {
-    return new EmbedBuilder().setTitle('✅ ' + title).setDescription(message).setColor(COLORS.SUCCESS).setTimestamp();
+    return new EmbedBuilder().setTitle(`✅ ${title}`).setDescription(message).setColor(COLORS.SUCCESS).setTimestamp();
 }
 
 module.exports = {
     buildFilaEmbed, buildFilaButtons,
     buildTicketEmbed, buildTicketButtons, buildAdminButtons,
+    buildConfirmacaoEmbed, buildConfirmButtons,
     buildPixEmbed, buildSalaEmbed, buildSalaButtons, buildVencedorEmbed,
     buildHistoricoEmbed, buildRankingEmbed,
+    buildLogEmbed,
     buildErrorEmbed, buildWarningEmbed, buildInfoEmbed, buildSuccessEmbed,
 };
