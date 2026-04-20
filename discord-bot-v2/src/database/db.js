@@ -25,21 +25,32 @@ db.exec(`
     );
 
     CREATE TABLE IF NOT EXISTS tickets (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        channel_id      TEXT NOT NULL UNIQUE,
-        player1_id      TEXT NOT NULL,
-        player2_id      TEXT NOT NULL,
-        player1_name    TEXT NOT NULL,
-        player2_name    TEXT NOT NULL,
-        mode            TEXT NOT NULL,
-        value           INTEGER NOT NULL DEFAULT 1,
-        guild_id        TEXT NOT NULL,
-        categoria       TEXT NOT NULL DEFAULT 'Mobile',
-        formato         TEXT NOT NULL DEFAULT '1x1',
-        admin_id        TEXT,
-        status          TEXT DEFAULT 'active',
-        created_at      INTEGER NOT NULL,
-        message_id      TEXT
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id          TEXT NOT NULL UNIQUE,
+        player1_id          TEXT NOT NULL,
+        player2_id          TEXT NOT NULL,
+        player1_name        TEXT NOT NULL,
+        player2_name        TEXT NOT NULL,
+        mode                TEXT NOT NULL,
+        value               INTEGER NOT NULL DEFAULT 1,
+        guild_id            TEXT NOT NULL,
+        categoria           TEXT NOT NULL DEFAULT 'Mobile',
+        formato             TEXT NOT NULL DEFAULT '1x1',
+        admin_id            TEXT,
+        status              TEXT DEFAULT 'active',
+        created_at          INTEGER NOT NULL,
+        message_id          TEXT,
+        player1_confirmed   INTEGER NOT NULL DEFAULT 0,
+        player2_confirmed   INTEGER NOT NULL DEFAULT 0,
+        pix_sent            INTEGER NOT NULL DEFAULT 0,
+        taxa                REAL NOT NULL DEFAULT 0,
+        pix_chave           TEXT,
+        winner_id           TEXT,
+        winner_name         TEXT,
+        loser_id            TEXT,
+        loser_name          TEXT,
+        closed_at           INTEGER,
+        close_reason        TEXT
     );
 
     CREATE TABLE IF NOT EXISTS admin_queue (
@@ -165,11 +176,12 @@ function getFilaMessagesByValue(guildId, value) {
 // ============================================================
 
 function createTicket(channelId, player1, player2, mode, value, guildId, adminId = null, categoria = 'Mobile', formato = '1x1') {
+    const taxa = calcTaxa(value);
     db.prepare(`
         INSERT INTO tickets
-        (channel_id, player1_id, player2_id, player1_name, player2_name, mode, value, guild_id, categoria, formato, admin_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(channelId, player1.id, player1.username, player2.id, player2.username, mode, value, guildId, categoria, formato, adminId, Date.now());
+        (channel_id, player1_id, player2_id, player1_name, player2_name, mode, value, guild_id, categoria, formato, admin_id, created_at, taxa)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(channelId, player1.id, player1.username, player2.id, player2.username, mode, value, guildId, categoria, formato, adminId, Date.now(), taxa);
 }
 
 function updateTicketMessage(channelId, messageId) {
@@ -197,6 +209,36 @@ function getActiveTickets(guildId) {
         SELECT * FROM tickets WHERE guild_id = ? AND status = 'active'
         ORDER BY created_at DESC
     `).all(guildId);
+}
+
+// Confirmação dos jogadores
+function confirmPlayer(channelId, playerId, ticket) {
+    if (ticket.player1_id === playerId) {
+        db.prepare('UPDATE tickets SET player1_confirmed = 1 WHERE channel_id = ?').run(channelId);
+    } else if (ticket.player2_id === playerId) {
+        db.prepare('UPDATE tickets SET player2_confirmed = 1 WHERE channel_id = ?').run(channelId);
+    }
+    return db.prepare('SELECT * FROM tickets WHERE channel_id = ?').get(channelId);
+}
+
+function markPixSent(channelId, pixChave) {
+    db.prepare('UPDATE tickets SET pix_sent = 1, pix_chave = ? WHERE channel_id = ?').run(pixChave, channelId);
+}
+
+function setTicketResult(channelId, winnerId, winnerName, loserId, loserName, closeReason = 'finished') {
+    db.prepare(`
+        UPDATE tickets SET
+            winner_id = ?, winner_name = ?,
+            loser_id = ?, loser_name = ?,
+            closed_at = ?, close_reason = ?
+        WHERE channel_id = ?
+    `).run(winnerId, winnerName, loserId, loserName, Date.now(), closeReason, channelId);
+}
+
+function setTicketClosed(channelId, closeReason = 'cancelled') {
+    db.prepare(`
+        UPDATE tickets SET closed_at = ?, close_reason = ? WHERE channel_id = ?
+    `).run(Date.now(), closeReason, channelId);
 }
 
 // ============================================================
@@ -286,15 +328,27 @@ function getRanking(guildId) {
     `).all(guildId);
 }
 
+// ============================================================
+// UTILITÁRIOS
+// ============================================================
+
+function calcTaxa(value) {
+    if (value >= 1 && value <= 10) return 0.50;
+    if (value > 10 && value <= 20) return 1.00;
+    return 0;
+}
+
 module.exports = {
     addToQueue, removeFromQueue, isInQueue, getQueuePair,
     getQueueByModeAndValue, getQueueCounts,
     saveFilaMessageId, getFilaMessageId, getFilaMessagesByValue,
     createTicket, updateTicketMessage, updateTicketStatus,
     updateTicketAdmin, getTicket, deleteTicket, getActiveTickets,
+    confirmPlayer, markPixSent, setTicketResult, setTicketClosed,
     addAdminToQueue, removeAdminFromQueue, getNextAdmin,
     getAdminQueue, isAdminInQueue,
     setAdminPix, getAdminPix,
     addHistorico, getHistorico, getRanking,
+    calcTaxa,
     db,
 };
