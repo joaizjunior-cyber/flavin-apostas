@@ -56,12 +56,13 @@ module.exports = {
         const loserName  = winner.id === ticket.player1_id ? ticket.player2_name : ticket.player1_name;
 
         db.addHistorico(winnerId, winnerName, loserId, loserName, ticket.mode, ticket.value, ticket.guild_id, ticket.channel_id);
+        db.setTicketResult(channel.id, winnerId, winnerName, loserId, loserName, 'finished');
         db.updateTicketStatus(channel.id, 'finished');
 
         await interaction.reply({
             embeds: [buildVencedorEmbed(winnerId, loserId, ticket.mode, ticket.value)],
         });
 
-        await closeTicketChannel(channel, 8000);
+        await closeTicketChannel(channel, 8000, 'finished');
     },
 };
