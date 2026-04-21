@@ -23,25 +23,30 @@ async function refreshFilaEmbed(guild, valor) {
         if (!records || records.length === 0) return;
 
         for (const record of records) {
-            const channel = await guild.channels.fetch(record.channel_id).catch(() => null);
-            if (!channel) continue;
+            try {
+                const channel = await guild.channels.fetch(record.channel_id).catch(() => null);
+                if (!channel) continue;
 
-            const msg = await channel.messages.fetch(record.message_id).catch(() => null);
-            if (!msg) continue;
+                const msg = await channel.messages.fetch(record.message_id).catch(() => null);
+                if (!msg) continue;
 
-            const normalPlayers   = db.getQueueByModeAndValue('gelo_normal',   valor, guild.id, record.categoria, record.formato);
-            const infinitoPlayers = db.getQueueByModeAndValue('gelo_infinito', valor, guild.id, record.categoria, record.formato);
+                // Busca os jogadores atuais da fila para cada modo separadamente
+                const normalPlayers   = db.getQueueByModeAndValue('gelo_normal',   valor, guild.id, record.categoria, record.formato);
+                const infinitoPlayers = db.getQueueByModeAndValue('gelo_infinito', valor, guild.id, record.categoria, record.formato);
 
-            const normalId   = normalPlayers[0]   ? normalPlayers[0].user_id   : null;
-            const infinitoId = infinitoPlayers[0] ? infinitoPlayers[0].user_id : null;
+                const normalId   = normalPlayers.length   > 0 ? normalPlayers[0].user_id   : null;
+                const infinitoId = infinitoPlayers.length > 0 ? infinitoPlayers[0].user_id : null;
 
-            await msg.edit({
-                embeds: [buildFilaEmbed(valor, normalId, infinitoId, record.categoria, record.formato)],
-                components: [buildFilaButtons(valor, record.categoria, record.formato)],
-            }).catch(err => console.error('[PAINEL] Erro ao editar mensagem:', err.message));
+                await msg.edit({
+                    embeds: [buildFilaEmbed(valor, normalId, infinitoId, record.categoria, record.formato)],
+                    components: [buildFilaButtons(valor, record.categoria, record.formato)],
+                });
+            } catch (innerErr) {
+                console.error(`[PAINEL] Erro ao atualizar mensagem R$${valor}:`, innerErr.message);
+            }
         }
     } catch (err) {
-        console.error(`[PAINEL] Erro ao atualizar embed da fila R$${valor}:`, err.message);
+        console.error(`[PAINEL] Erro geral ao atualizar fila R$${valor}:`, err.message);
     }
 }
 
@@ -63,12 +68,11 @@ async function handleButton(interaction) {
     }
 
     switch (customId) {
-        case BUTTONS.CONFIRM_MATCH:      await handleConfirmMatch(interaction);    break;
-        case BUTTONS.LEAVE_QUEUE:        await handleLeaveQueue(interaction);      break;
-        case BUTTONS.MATCH_CANCELLED:    await handleMatchCancelled(interaction);  break;
-        case BUTTONS.CLOSE_TICKET:       await handleCloseTicket(interaction);     break;
-        case BUTTONS.ADMIN_CONFIRM_PIX:  await handleAdminConfirmPix(interaction); break;
-        case BUTTONS.ADMIN_CLOSE_TICKET: await handleAdminCloseTicket(interaction);break;
+        case BUTTONS.CONFIRM_MATCH:      await handleConfirmMatch(interaction);     break;
+        case BUTTONS.MATCH_CANCELLED:    await handleMatchCancelled(interaction);   break;
+        case BUTTONS.CLOSE_TICKET:       await handleCloseTicket(interaction);      break;
+        case BUTTONS.ADMIN_CONFIRM_PIX:  await handleAdminConfirmPix(interaction);  break;
+        case BUTTONS.ADMIN_CLOSE_TICKET: await handleAdminCloseTicket(interaction); break;
         default: console.warn('[BOTAO] ID desconhecido: ' + customId);
     }
 }
@@ -104,6 +108,7 @@ async function handleFilaButton(interaction) {
         return interaction.reply({ embeds: [buildErrorEmbed('Erro ao entrar na fila. Tente novamente.')], ephemeral: true });
     }
 
+    // Atualiza o painel ANTES de responder para o jogador ver o nome aparecer
     await refreshFilaEmbed(guild, valor);
 
     const pair  = db.getQueuePair(modo, valor, guild.id, categoria, formato);
@@ -130,6 +135,8 @@ async function handleFilaButton(interaction) {
     }
 
     await checkAndCreateMatch(guild, modo, valor, categoria, formato);
+
+    // Atualiza novamente após criar o match (limpa os nomes do painel)
     await refreshFilaEmbed(guild, valor);
 }
 
@@ -138,18 +145,17 @@ async function handleFilaButton(interaction) {
 // ============================================================
 
 async function handleConfirmMatch(interaction) {
-    // Busca o ticket fresquinho do banco a cada clique
+    // Sempre busca o ticket fresquinho do banco
     const ticket = db.getTicket(interaction.channel.id);
     if (!ticket) {
         return interaction.reply({ embeds: [buildErrorEmbed('Ticket não encontrado.')], ephemeral: true });
     }
 
-    const userId = interaction.user.id;
-
-    // Só os jogadores da partida podem confirmar
+    const userId    = interaction.user.id;
     const isPlayer1 = userId === ticket.player1_id;
     const isPlayer2 = userId === ticket.player2_id;
 
+    // Só jogadores da partida confirmam
     if (!isPlayer1 && !isPlayer2) {
         return interaction.reply({
             embeds: [buildErrorEmbed('Apenas os jogadores desta partida podem confirmar.')],
@@ -157,23 +163,27 @@ async function handleConfirmMatch(interaction) {
         });
     }
 
-    // Bloqueia se este jogador específico já confirmou
+    // Bloqueia se já confirmou
     if (isPlayer1 && ticket.player1_confirmed) {
         return interaction.reply({
-            embeds: [buildInfoEmbed('Já confirmado', 'Você já confirmou! Aguardando o **outro jogador** confirmar.')],
+            embeds: [buildInfoEmbed('Já confirmado', 'Você já confirmou! Aguardando **o outro jogador** confirmar.')],
             ephemeral: true,
         });
     }
-
     if (isPlayer2 && ticket.player2_confirmed) {
         return interaction.reply({
-            embeds: [buildInfoEmbed('Já confirmado', 'Você já confirmou! Aguardando o **outro jogador** confirmar.')],
+            embeds: [buildInfoEmbed('Já confirmado', 'Você já confirmou! Aguardando **o outro jogador** confirmar.')],
             ephemeral: true,
         });
     }
 
-    // Salva a confirmação apenas deste jogador
-    const ticketAtualizado = db.confirmPlayer(interaction.channel.id, userId, ticket);
+    // Usa funções separadas para player1 e player2 — sem risco de sobrescrever
+    let ticketAtualizado;
+    if (isPlayer1) {
+        ticketAtualizado = db.confirmPlayer1(interaction.channel.id);
+    } else {
+        ticketAtualizado = db.confirmPlayer2(interaction.channel.id);
+    }
 
     const p1Confirmed    = !!ticketAtualizado.player1_confirmed;
     const p2Confirmed    = !!ticketAtualizado.player2_confirmed;
@@ -183,7 +193,7 @@ async function handleConfirmMatch(interaction) {
     const confirmBtns  = buildConfirmButtons(p1Confirmed, p2Confirmed);
     const adminBtns    = buildAdminButtons();
 
-    // Atualiza a mensagem original do ticket
+    // Atualiza os botões na mensagem original
     try {
         const msg = await interaction.channel.messages.fetch(ticket.message_id);
         await msg.edit({ components: [confirmBtns, adminBtns] });
@@ -191,37 +201,17 @@ async function handleConfirmMatch(interaction) {
         console.error('[CONFIRM] Erro ao editar mensagem:', err.message);
     }
 
-    // Mostra para todos no canal quem confirmou
-    await interaction.reply({
-        embeds: [confirmEmbed],
-        ephemeral: false,
-    });
+    // Mostra para todos no canal o status das confirmações
+    await interaction.reply({ embeds: [confirmEmbed], ephemeral: false });
 
-    // Só dispara o PIX quando os DOIS tiverem confirmado
+    // Dispara o PIX automático apenas quando os DOIS confirmarem
     if (ambosConfirmaram) {
         await sendPixAutomatico(interaction.channel, ticketAtualizado, interaction.guild);
     }
 }
 
 // ============================================================
-// SAIR DA FILA
-// ============================================================
-
-async function handleLeaveQueue(interaction) {
-    const entry = db.isInQueue(interaction.user.id);
-    if (!entry) {
-        return interaction.reply({ embeds: [buildInfoEmbed('Não está em fila', 'Você não está em nenhuma fila.')], ephemeral: true });
-    }
-    db.removeFromQueue(interaction.user.id);
-    await refreshFilaEmbed(interaction.guild, entry.value);
-    return interaction.reply({
-        embeds: [buildInfoEmbed('Saiu da fila', `Você saiu da fila de **${MODE_LABELS[entry.mode] || entry.mode}** — R$${entry.value}.`)],
-        ephemeral: true,
-    });
-}
-
-// ============================================================
-// CANCELAR PARTIDA
+// CANCELAR PARTIDA — apenas jogadores
 // ============================================================
 
 async function handleMatchCancelled(interaction) {
@@ -229,7 +219,12 @@ async function handleMatchCancelled(interaction) {
     if (!ticket) return interaction.reply({ embeds: [buildErrorEmbed('Ticket não encontrado.')], ephemeral: true });
 
     const isPlayer = interaction.user.id === ticket.player1_id || interaction.user.id === ticket.player2_id;
-    if (!isPlayer) return interaction.reply({ embeds: [buildErrorEmbed('Apenas jogadores podem cancelar.')], ephemeral: true });
+    if (!isPlayer) {
+        return interaction.reply({
+            embeds: [buildErrorEmbed('Apenas os jogadores desta partida podem cancelar.')],
+            ephemeral: true,
+        });
+    }
 
     db.setTicketClosed(interaction.channel.id, 'cancelled');
     db.updateTicketStatus(interaction.channel.id, 'cancelled');
@@ -245,7 +240,7 @@ async function handleMatchCancelled(interaction) {
 }
 
 // ============================================================
-// FECHAR TICKET
+// FECHAR TICKET — apenas admins
 // ============================================================
 
 async function handleCloseTicket(interaction) {
@@ -253,17 +248,21 @@ async function handleCloseTicket(interaction) {
     if (!ticket) return interaction.reply({ embeds: [buildErrorEmbed('Não é um ticket.')], ephemeral: true });
 
     const adminRoleId = process.env.ADMIN_ROLE_ID;
-    const isAdmin  = interaction.member.permissions.has(8n) || (adminRoleId && interaction.member.roles.cache.has(adminRoleId));
-    const isPlayer = interaction.user.id === ticket.player1_id || interaction.user.id === ticket.player2_id;
+    const isAdmin = interaction.member.permissions.has(8n) || (adminRoleId && interaction.member.roles.cache.has(adminRoleId));
 
-    if (!isPlayer && !isAdmin) return interaction.reply({ embeds: [buildErrorEmbed('Sem permissão.')], ephemeral: true });
+    if (!isAdmin) {
+        return interaction.reply({
+            embeds: [buildErrorEmbed('Apenas administradores podem fechar o ticket.')],
+            ephemeral: true,
+        });
+    }
 
     db.setTicketClosed(interaction.channel.id, 'admin_closed');
 
     await interaction.reply({
         embeds: [new EmbedBuilder()
             .setTitle('🔒 Fechando Ticket')
-            .setDescription(`Solicitado por <@${interaction.user.id}>. Fechando em 5s...`)
+            .setDescription(`Fechado por <@${interaction.user.id}>. Deletando em 5s...`)
             .setColor(COLORS.WARNING).setTimestamp()],
     });
 
@@ -291,7 +290,7 @@ async function handleAdminConfirmPix(interaction) {
 }
 
 // ============================================================
-// ADMIN: FECHAR TICKET
+// ADMIN: FECHAR TICKET (botão admin)
 // ============================================================
 
 async function handleAdminCloseTicket(interaction) {
