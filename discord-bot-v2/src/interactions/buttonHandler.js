@@ -104,7 +104,6 @@ async function handleFilaButton(interaction) {
         return interaction.reply({ embeds: [buildErrorEmbed('Erro ao entrar na fila. Tente novamente.')], ephemeral: true });
     }
 
-    // Atualiza o painel imediatamente após entrar na fila
     await refreshFilaEmbed(guild, valor);
 
     const pair  = db.getQueuePair(modo, valor, guild.id, categoria, formato);
@@ -131,8 +130,6 @@ async function handleFilaButton(interaction) {
     }
 
     await checkAndCreateMatch(guild, modo, valor, categoria, formato);
-
-    // Atualiza novamente após o match (para limpar os nomes se a partida foi criada)
     await refreshFilaEmbed(guild, valor);
 }
 
@@ -141,29 +138,46 @@ async function handleFilaButton(interaction) {
 // ============================================================
 
 async function handleConfirmMatch(interaction) {
+    // Busca o ticket fresquinho do banco a cada clique
     const ticket = db.getTicket(interaction.channel.id);
     if (!ticket) {
         return interaction.reply({ embeds: [buildErrorEmbed('Ticket não encontrado.')], ephemeral: true });
     }
 
-    const userId   = interaction.user.id;
-    const isPlayer = userId === ticket.player1_id || userId === ticket.player2_id;
-    if (!isPlayer) {
-        return interaction.reply({ embeds: [buildErrorEmbed('Apenas os jogadores desta partida podem confirmar.')], ephemeral: true });
+    const userId = interaction.user.id;
+
+    // Só os jogadores da partida podem confirmar
+    const isPlayer1 = userId === ticket.player1_id;
+    const isPlayer2 = userId === ticket.player2_id;
+
+    if (!isPlayer1 && !isPlayer2) {
+        return interaction.reply({
+            embeds: [buildErrorEmbed('Apenas os jogadores desta partida podem confirmar.')],
+            ephemeral: true,
+        });
     }
 
-    // Verifica se o jogador já confirmou
-    const jaConfirmou = (userId === ticket.player1_id && ticket.player1_confirmed) ||
-                        (userId === ticket.player2_id && ticket.player2_confirmed);
-    if (jaConfirmou) {
-        return interaction.reply({ embeds: [buildInfoEmbed('Já confirmado', 'Você já confirmou esta partida. Aguardando o outro jogador.')], ephemeral: true });
+    // Bloqueia se este jogador específico já confirmou
+    if (isPlayer1 && ticket.player1_confirmed) {
+        return interaction.reply({
+            embeds: [buildInfoEmbed('Já confirmado', 'Você já confirmou! Aguardando o **outro jogador** confirmar.')],
+            ephemeral: true,
+        });
     }
 
-    // Registra a confirmação
+    if (isPlayer2 && ticket.player2_confirmed) {
+        return interaction.reply({
+            embeds: [buildInfoEmbed('Já confirmado', 'Você já confirmou! Aguardando o **outro jogador** confirmar.')],
+            ephemeral: true,
+        });
+    }
+
+    // Salva a confirmação apenas deste jogador
     const ticketAtualizado = db.confirmPlayer(interaction.channel.id, userId, ticket);
 
-    const p1Confirmed = !!ticketAtualizado.player1_confirmed;
-    const p2Confirmed = !!ticketAtualizado.player2_confirmed;
+    const p1Confirmed    = !!ticketAtualizado.player1_confirmed;
+    const p2Confirmed    = !!ticketAtualizado.player2_confirmed;
+    const ambosConfirmaram = p1Confirmed && p2Confirmed;
 
     const confirmEmbed = buildConfirmacaoEmbed(ticket.player1_id, ticket.player2_id, p1Confirmed, p2Confirmed);
     const confirmBtns  = buildConfirmButtons(p1Confirmed, p2Confirmed);
@@ -177,10 +191,14 @@ async function handleConfirmMatch(interaction) {
         console.error('[CONFIRM] Erro ao editar mensagem:', err.message);
     }
 
-    await interaction.reply({ embeds: [confirmEmbed], ephemeral: false });
+    // Mostra para todos no canal quem confirmou
+    await interaction.reply({
+        embeds: [confirmEmbed],
+        ephemeral: false,
+    });
 
-    // Se os dois confirmaram, envia o PIX automaticamente
-    if (p1Confirmed && p2Confirmed) {
+    // Só dispara o PIX quando os DOIS tiverem confirmado
+    if (ambosConfirmaram) {
         await sendPixAutomatico(interaction.channel, ticketAtualizado, interaction.guild);
     }
 }
