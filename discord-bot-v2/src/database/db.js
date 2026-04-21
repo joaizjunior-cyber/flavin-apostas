@@ -211,13 +211,14 @@ function getActiveTickets(guildId) {
     `).all(guildId);
 }
 
-// Confirmação dos jogadores
-function confirmPlayer(channelId, playerId, ticket) {
-    if (ticket.player1_id === playerId) {
-        db.prepare('UPDATE tickets SET player1_confirmed = 1 WHERE channel_id = ?').run(channelId);
-    } else if (ticket.player2_id === playerId) {
-        db.prepare('UPDATE tickets SET player2_confirmed = 1 WHERE channel_id = ?').run(channelId);
-    }
+// Confirmação individual por jogador — cada um tem seu próprio UPDATE
+function confirmPlayer1(channelId) {
+    db.prepare('UPDATE tickets SET player1_confirmed = 1 WHERE channel_id = ?').run(channelId);
+    return db.prepare('SELECT * FROM tickets WHERE channel_id = ?').get(channelId);
+}
+
+function confirmPlayer2(channelId) {
+    db.prepare('UPDATE tickets SET player2_confirmed = 1 WHERE channel_id = ?').run(channelId);
     return db.prepare('SELECT * FROM tickets WHERE channel_id = ?').get(channelId);
 }
 
@@ -286,12 +287,18 @@ function isAdminInQueue(userId) {
 // PIX DOS ADMINS
 // ============================================================
 
-function setAdminPix(userId, guildId, chave, valor) {
+function setAdminPix(userId, guildId, chave) {
     db.prepare(`
         INSERT INTO admin_pix (user_id, guild_id, chave, valor)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(user_id, guild_id) DO UPDATE SET chave = ?, valor = ?
-    `).run(userId, guildId, chave, valor, chave, valor);
+        VALUES (?, ?, ?, 0)
+        ON CONFLICT(user_id, guild_id) DO UPDATE SET chave = ?
+    `).run(userId, guildId, chave, chave);
+}
+
+function setAdminPixValor(userId, guildId, valor) {
+    db.prepare(`
+        UPDATE admin_pix SET valor = ? WHERE user_id = ? AND guild_id = ?
+    `).run(valor, userId, guildId);
 }
 
 function getAdminPix(userId, guildId) {
@@ -344,10 +351,10 @@ module.exports = {
     saveFilaMessageId, getFilaMessageId, getFilaMessagesByValue,
     createTicket, updateTicketMessage, updateTicketStatus,
     updateTicketAdmin, getTicket, deleteTicket, getActiveTickets,
-    confirmPlayer, markPixSent, setTicketResult, setTicketClosed,
+    confirmPlayer1, confirmPlayer2, markPixSent, setTicketResult, setTicketClosed,
     addAdminToQueue, removeAdminFromQueue, getNextAdmin,
     getAdminQueue, isAdminInQueue,
-    setAdminPix, getAdminPix,
+    setAdminPix, setAdminPixValor, getAdminPix,
     addHistorico, getHistorico, getRanking,
     calcTaxa,
     db,
