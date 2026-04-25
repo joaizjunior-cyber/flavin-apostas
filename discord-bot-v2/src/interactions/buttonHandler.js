@@ -157,6 +157,8 @@ async function handleConfirmMatch(interaction) {
     const isPlayer2 = userId === String(ticket.player2_id);
 
     console.log(`[CONFIRM] userId=${userId} | p1=${ticket.player1_id} | p2=${ticket.player2_id} | isP1=${isPlayer1} | isP2=${isPlayer2}`);
+
+    console.log(`[CONFIRM] userId=${userId} | p1=${ticket.player1_id} | p2=${ticket.player2_id} | isP1=${isPlayer1} | isP2=${isPlayer2}`);
     // Só jogadores da partida confirmam
     if (!isPlayer1 && !isPlayer2) {
         return interaction.reply({
