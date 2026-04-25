@@ -5,14 +5,17 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { COLORS, BUTTONS, MODE_LABELS } = require('../config/constants');
 
-function buildFilaEmbed(valor, normalPlayer, infinitoPlayer, categoria, formato) {
-    normalPlayer   = normalPlayer   || null;
-    infinitoPlayer = infinitoPlayer || null;
-    categoria      = categoria      || 'Mobile';
-    formato        = formato        || '1x1';
+function buildFilaEmbed(valor, normalPlayers, infinitoPlayers, categoria, formato) {
+    normalPlayers   = normalPlayers   || [];
+    infinitoPlayers = infinitoPlayers || [];
+    categoria       = categoria       || 'Mobile';
+    formato         = formato         || '1x1';
 
-    const normalText   = normalPlayer   ? `<@${normalPlayer}> — aguardando...`   : 'Nenhum jogador na fila.';
-    const infinitoText = infinitoPlayer ? `<@${infinitoPlayer}> — aguardando...` : 'Nenhum jogador na fila.';
+    const normalIds   = Array.isArray(normalPlayers)   ? normalPlayers   : (normalPlayers   ? [normalPlayers]   : []);
+    const infinitoIds = Array.isArray(infinitoPlayers) ? infinitoPlayers : (infinitoPlayers ? [infinitoPlayers] : []);
+
+    const normalText   = normalIds.length   > 0 ? normalIds.map(id => `<@${id}>`).join(', ') + ' — aguardando...'   : 'Nenhum jogador na fila.';
+    const infinitoText = infinitoIds.length > 0 ? infinitoIds.map(id => `<@${id}>`).join(', ') + ' — aguardando...' : 'Nenhum jogador na fila.';
 
     return new EmbedBuilder()
         .setTitle(`${categoria} | ${formato} | R$${valor},00`)
