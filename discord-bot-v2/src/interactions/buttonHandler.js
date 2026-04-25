@@ -68,6 +68,7 @@ async function handleButton(interaction) {
     }
 
     switch (customId) {
+        case BUTTONS.LEAVE_QUEUE:        await handleLeaveQueue(interaction);       break;
         case BUTTONS.CONFIRM_MATCH:      await handleConfirmMatch(interaction);     break;
         case BUTTONS.MATCH_CANCELLED:    await handleMatchCancelled(interaction);   break;
         case BUTTONS.CLOSE_TICKET:       await handleCloseTicket(interaction);      break;
@@ -314,3 +315,21 @@ async function handleAdminCloseTicket(interaction) {
 }
 
 module.exports = { handleButton, refreshFilaEmbed };
+async function handleLeaveQueue(interaction) {
+    const entry = db.isInQueue(interaction.user.id);
+    if (!entry) {
+        return interaction.reply({
+            embeds: [buildInfoEmbed('Não está em fila', 'Você não está em nenhuma fila no momento.')],
+            ephemeral: true,
+        });
+    }
+
+    db.removeFromQueue(interaction.user.id);
+
+    await refreshFilaEmbed(interaction.guild, entry.value);
+
+    return interaction.reply({
+        embeds: [buildInfoEmbed('Saiu da fila', `Você saiu da fila de **${MODE_LABELS[entry.mode] || entry.mode}** — R$${entry.value},00.`)],
+        ephemeral: true,
+    });
+}
